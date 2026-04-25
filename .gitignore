@@ -1,0 +1,56 @@
+## ===== Visual Studio =====
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## ===== Build results =====
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## ===== .NET =====
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+
+## ===== NuGet =====
+*.nupkg
+**/packages/*
+!**/packages/build/
+!**/packages/repositories.config
+.nuget/
+packages/
+
+## ===== Rider / Resharper =====
+.idea/
+*.DotSettings.user
+
+## ===== Node (se usi frontend) =====
+node_modules/
+
+## ===== Docker =====
+docker-compose.override.yml
+
+## ===== OS =====
+.DS_Store
+Thumbs.db
+
+## ===== Secrets =====
+appsettings.Development.json
+secrets.json
