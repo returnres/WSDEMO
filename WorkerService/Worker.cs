@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 
 namespace WorkerService
@@ -9,9 +10,11 @@ namespace WorkerService
     {
         private readonly ILogger<Worker> _logger;
         private HubConnection _connection;
-        public Worker(ILogger<Worker> logger)
+        private readonly IHttpClientFactory _httpClientFactory;
+        public Worker(ILogger<Worker> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -27,10 +30,37 @@ namespace WorkerService
     })
                 .Build();
 
-            // ricezione messaggi
-            _connection.On<string>("ReceiveMessage", message =>
+            // ricezione notifica da server
+            _connection.On<string>("ReceiveMessage", async message =>
             {
                 _logger.LogInformation($"Messaggio ricevuto: {message}");
+                try
+                {
+                    var client = _httpClientFactory.CreateClient("MyApi");
+
+                    var payload = new
+                    {
+                        message = message
+                    };
+
+                    var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var response = await client.PostAsync("api/test", content);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        _logger.LogInformation("Chiamata API OK");
+                    }
+                    else
+                    {
+                        _logger.LogError($"Errore API: {response.StatusCode}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Errore durante chiamata API");
+                }
             });
 
             _connection.Reconnecting += error =>
