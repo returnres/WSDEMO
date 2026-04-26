@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace WebApiServer.Controllers
 {
     [ApiController]
-    [Route("test")]
+    [Route("api/[controller]")]
     public class TestController : ControllerBase
     {
         private readonly IHubContext<NotificationHub> _hub;
@@ -17,38 +17,7 @@ namespace WebApiServer.Controllers
         [HttpGet]
         public async Task Test()
         {
-            await _hub.Clients.All.SendAsync("Test", "Ciao dal server, mi hai chiamato!");
-        }
-
-        [HttpPost("add")]
-        public async Task<IActionResult> Add(IFormFile file, string clientId)
-        {
-            //using var ms = new MemoryStream();
-            //await file.CopyToAsync(ms);
-
-            //var entity = new FileEntity
-            //{
-            //    Id = Guid.NewGuid(),
-            //    ClientId = clientId,
-            //    Content = ms.ToArray(),
-            //    Status = "Pending"
-            //};
-
-            //_db.Files.Add(entity);
-            //await _db.SaveChangesAsync();
-
-            //// notifico client
-            //await _hub.Clients
-            //    .Group(clientId)
-            //    .SendAsync("NotifyFile", entity.Id);
-
-            // notifico client
-            await _hub.Clients
-                .Group(clientId)
-                .SendAsync("ReceiveMessage", new Guid());
-
-            //return Ok(entity.Id);
-            return Ok(1);
+            await _hub.Clients.All.SendAsync("TestMessage", "Ciao dal server, mi hai chiamato!");
         }
     }
 }

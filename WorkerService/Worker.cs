@@ -116,9 +116,48 @@ namespace WorkerService
             }
         }
 
+        //private async Task ProcessMessage(Guid message, CancellationToken stoppingToken)
+        //{
+        //   //aspetta slot liberi (in ram)
+        //    await _semaphore.WaitAsync(stoppingToken);
+
+        //    //after webapi notified me call webapi 
+        //    try
+        //    {
+        //        var client = _httpClientFactory.CreateClient("api");
+
+        //        var payload = new
+        //        {
+        //            message = message
+        //        };
+
+        //        var json = JsonSerializer.Serialize(payload);
+        //        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        //        var response = await client.PostAsync("api/file/add", content, stoppingToken);
+
+        //        if (response.IsSuccessStatusCode)
+        //        {
+        //            _logger.LogInformation($"OK → {message}");
+        //        }
+        //        else
+        //        {
+        //            _logger.LogError($"Errore API ({response.StatusCode}) → {message}");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, $"Errore processing → {message}");
+        //    }
+        //    finally
+        //    {
+        //        _semaphore.Release();
+        //    }
+        //}
+
         private async Task ProcessMessage(Guid message, CancellationToken stoppingToken)
         {
-           //aspetta slot liberi (in ram)
+            //aspetta slot liberi (in ram)
             await _semaphore.WaitAsync(stoppingToken);
 
             //after webapi notified me call webapi 
@@ -126,15 +165,7 @@ namespace WorkerService
             {
                 var client = _httpClientFactory.CreateClient("api");
 
-                var payload = new
-                {
-                    message = message
-                };
-
-                var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync("api/test", content, stoppingToken);
+                var response = await client.GetAsync("api/test", stoppingToken);
 
                 if (response.IsSuccessStatusCode)
                 {
