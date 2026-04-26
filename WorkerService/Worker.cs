@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
 
 
 namespace WorkerService
@@ -9,95 +11,184 @@ namespace WorkerService
     public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
-        private HubConnection _connection;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly string _clientId = "pippo";
+        private readonly  int _sizeQueue = 100;
+        private readonly  int _maxParallelWork = 10;
+        private HubConnection _connection;
+
+        //  Coda interna
+        private readonly Channel<Guid> _channel;
+
+        //  Limite concorrenza HTTP
+        private readonly SemaphoreSlim _semaphore = new(_maxParallelWork);
+
         public Worker(ILogger<Worker> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+
+            // Channel non limitato 
+            //_channel = Channel.CreateUnbounded<Guid>();
+            // Channel limitato a 100 messaggi 
+            _channel = Channel.CreateBounded<Guid>(_sizeQueue);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            // Setup SignalR
             _connection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7247/hub")
-               .WithAutomaticReconnect(new[]
-    {
-    TimeSpan.Zero,
-    TimeSpan.FromSeconds(2),
-    TimeSpan.FromSeconds(10),
-    TimeSpan.FromSeconds(30)
-    })
+                .WithAutomaticReconnect(new[]
+                {
+                    TimeSpan.Zero,
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(10),
+                    TimeSpan.FromSeconds(30)
+                })
                 .Build();
 
-            // ricezione notifica da server
-            _connection.On<string>("ReceiveMessage", async message =>
+          
+
+            // Ricezione messaggi → scrivo in coda
+            _connection.On<Guid>("AddFile", async message =>
             {
                 _logger.LogInformation($"Messaggio ricevuto: {message}");
-                try
-                {
-                    var client = _httpClientFactory.CreateClient("MyApi");
 
-                    var payload = new
-                    {
-                        message = message
-                    };
+                await _channel.Writer.WriteAsync(message, stoppingToken);
+            });
 
-                    var json = System.Text.Json.JsonSerializer.Serialize(payload);
-                    var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                    var response = await client.PostAsync("api/test", content);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        _logger.LogInformation("Chiamata API OK");
-                    }
-                    else
-                    {
-                        _logger.LogError($"Errore API: {response.StatusCode}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Errore durante chiamata API");
-                }
+            // Ricezione messaggi → scrivo in coda
+            _connection.On<string>("TestMessage",  message =>
+            {
+                _logger.LogInformation($"TestMessage ricevuto: {message}");
             });
 
             _connection.Reconnecting += error =>
             {
-                _logger.LogInformation(" Riconnessione in corso..");
+                _logger.LogWarning("Riconnessione in corso...");
                 return Task.CompletedTask;
             };
 
-            _connection.Reconnected += connectionId =>
+            _connection.Reconnected += async (connectionId) =>
             {
                 _logger.LogInformation("Riconnesso!");
-                return Task.CompletedTask;
+                await _connection.InvokeAsync("Register", _clientId);
             };
 
             _connection.Closed += async error =>
             {
-                _logger.LogInformation("Connessione chiusa, retry manuale...");
+                _logger.LogWarning("Connessione chiusa, retry manuale...");
                 await Task.Delay(5000);
                 await _connection.StartAsync();
             };
 
             await _connection.StartAsync(stoppingToken);
-            _logger.LogInformation("start");
-            _logger.LogInformation("Connected to SignalR");
 
-            await Task.Delay(Timeout.Infinite, stoppingToken);
+            //Registrazione nel gruppo 
+            await _connection.InvokeAsync("Register", _clientId);
+
+            _logger.LogInformation($"Registrato come {_clientId}");
+
+            _logger.LogInformation("Connesso a SignalR");
+
+            // Avvio consumer della coda
+            var consumerTask = ProcessQueue(stoppingToken);
+
+            await Task.WhenAll(consumerTask);
         }
 
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("Stopping worker...");
+
             if (_connection != null)
             {
-                _logger.LogInformation("stop");
                 await _connection.StopAsync();
             }
 
+            _channel.Writer.Complete();
+
+            await base.StopAsync(cancellationToken);
+        }
+
+        //processo i messaggi in coda
+        private async Task ProcessQueue(CancellationToken stoppingToken)
+        {
+            await foreach (var message in _channel.Reader.ReadAllAsync(stoppingToken))
+            {
+                _ = Task.Run(() => ProcessMessage(message, stoppingToken), stoppingToken);
+            }
+        }
+
+        //private async Task ProcessMessage(Guid message, CancellationToken stoppingToken)
+        //{
+        //   //aspetta slot liberi (in ram)
+        //    await _semaphore.WaitAsync(stoppingToken);
+
+        //    //after webapi notified me call webapi 
+        //    try
+        //    {
+        //        var client = _httpClientFactory.CreateClient("api");
+
+        //        var payload = new
+        //        {
+        //            message = message
+        //        };
+
+        //        var json = JsonSerializer.Serialize(payload);
+        //        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        //        var response = await client.PostAsync("api/file/add", content, stoppingToken);
+
+        //        if (response.IsSuccessStatusCode)
+        //        {
+        //            _logger.LogInformation($"OK → {message}");
+        //        }
+        //        else
+        //        {
+        //            _logger.LogError($"Errore API ({response.StatusCode}) → {message}");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, $"Errore processing → {message}");
+        //    }
+        //    finally
+        //    {
+        //        _semaphore.Release();
+        //    }
+        //}
+
+        private async Task ProcessMessage(Guid message, CancellationToken stoppingToken)
+        {
+            //aspetta slot liberi (in ram)
+            await _semaphore.WaitAsync(stoppingToken);
+
+            //after webapi notified me call webapi 
+            try
+            {
+                var client = _httpClientFactory.CreateClient("api");
+
+                var response = await client.GetAsync("api/test", stoppingToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation($"OK → {message}");
+                }
+                else
+                {
+                    _logger.LogError($"Errore API ({response.StatusCode}) → {message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Errore processing → {message}");
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
     }
-
 }

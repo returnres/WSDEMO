@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace WebApiServer.Controllers
 {
     [ApiController]
-    [Route("test")]
+    [Route("api/[controller]")]
     public class TestController : ControllerBase
     {
         private readonly IHubContext<NotificationHub> _hub;
@@ -15,9 +15,9 @@ namespace WebApiServer.Controllers
         }
 
         [HttpGet]
-        public async Task Send()
+        public async Task Test()
         {
-            await _hub.Clients.All.SendAsync("ReceiveMessage", "Ciao dal server");
+            await _hub.Clients.All.SendAsync("TestMessage", "Ciao dal server, mi hai chiamato!");
         }
     }
 }
