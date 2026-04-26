@@ -6,7 +6,7 @@ namespace WebApiServer
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
+            //TODO: configurare variabili
             // Add services to the container.
 
             builder.Services.AddControllers();

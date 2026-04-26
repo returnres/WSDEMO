@@ -12,22 +12,26 @@ namespace WorkerService
     {
         private readonly ILogger<Worker> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
-        private string _clientId = "pippo";
+        private readonly string _clientId = "pippo";
+        private readonly  int _sizeQueue = 100;
+        private readonly  int _maxParallelWork = 10;
         private HubConnection _connection;
 
         //  Coda interna
         private readonly Channel<Guid> _channel;
 
         //  Limite concorrenza HTTP
-        private readonly SemaphoreSlim _semaphore = new(5);
+        private readonly SemaphoreSlim _semaphore = new(_maxParallelWork);
 
         public Worker(ILogger<Worker> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
             _httpClientFactory = httpClientFactory;
 
-            // Channel non limitato (puoi cambiarlo dopo)
-            _channel = Channel.CreateUnbounded<Guid>();
+            // Channel non limitato 
+            //_channel = Channel.CreateUnbounded<Guid>();
+            // Channel limitato a 100 messaggi 
+            _channel = Channel.CreateBounded<Guid>(_sizeQueue);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -108,6 +112,7 @@ namespace WorkerService
             await base.StopAsync(cancellationToken);
         }
 
+        //processo i messaggi in coda
         private async Task ProcessQueue(CancellationToken stoppingToken)
         {
             await foreach (var message in _channel.Reader.ReadAllAsync(stoppingToken))

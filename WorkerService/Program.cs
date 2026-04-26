@@ -8,7 +8,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
-
+        //TODO: configurare variabili
         var basePath = @"C:\MyService\logs";
         Directory.CreateDirectory(basePath);
 
