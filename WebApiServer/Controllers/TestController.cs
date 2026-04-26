@@ -15,9 +15,40 @@ namespace WebApiServer.Controllers
         }
 
         [HttpGet]
-        public async Task Send()
+        public async Task Test()
         {
-            await _hub.Clients.All.SendAsync("ReceiveMessage", "Ciao dal server");
+            await _hub.Clients.All.SendAsync("Test", "Ciao dal server, mi hai chiamato!");
+        }
+
+        [HttpPost("add")]
+        public async Task<IActionResult> Add(IFormFile file, string clientId)
+        {
+            //using var ms = new MemoryStream();
+            //await file.CopyToAsync(ms);
+
+            //var entity = new FileEntity
+            //{
+            //    Id = Guid.NewGuid(),
+            //    ClientId = clientId,
+            //    Content = ms.ToArray(),
+            //    Status = "Pending"
+            //};
+
+            //_db.Files.Add(entity);
+            //await _db.SaveChangesAsync();
+
+            //// notifico client
+            //await _hub.Clients
+            //    .Group(clientId)
+            //    .SendAsync("NotifyFile", entity.Id);
+
+            // notifico client
+            await _hub.Clients
+                .Group(clientId)
+                .SendAsync("ReceiveMessage", new Guid());
+
+            //return Ok(entity.Id);
+            return Ok(1);
         }
     }
 }

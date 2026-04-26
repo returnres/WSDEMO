@@ -4,9 +4,9 @@ namespace WebApiServer
 {
     public class NotificationHub : Hub
     {
-        public async Task SendMessage(string message)
+        public async Task Register(string clientId)
         {
-            await Clients.All.SendAsync("ReceiveMessage", message);
+            await Groups.AddToGroupAsync(Context.ConnectionId, clientId);
         }
     }
 }
