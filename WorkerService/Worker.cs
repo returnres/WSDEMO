@@ -47,7 +47,7 @@ namespace WorkerService
           
 
             // Ricezione messaggi → scrivo in coda
-            _connection.On<Guid>("ReceiveMessage", async message =>
+            _connection.On<Guid>("AddFile", async message =>
             {
                 _logger.LogInformation($"Messaggio ricevuto: {message}");
 

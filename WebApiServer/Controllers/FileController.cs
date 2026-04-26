@@ -40,7 +40,7 @@ namespace WebApiServer.Controllers
             // notifico client
             await _hub.Clients
                 .Group(clientId)
-                .SendAsync("ReceiveMessage", new Guid());
+                .SendAsync("AddFile", new Guid());
 
             //return Ok(entity.Id);
             return Ok(1);
